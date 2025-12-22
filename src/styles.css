@@ -1,0 +1,158 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --text: #0b1220;
+  --muted: #5a6477;
+  --card: #ffffff;
+  --border: #2f2f2f;
+  --header: #d9e2f3;
+  --group0: #eef2fb;
+  --group1: #f6f8fe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.header {
+  background: var(--card);
+  border: 1px solid #d7dbe6;
+  padding: 14px 14px;
+  border-radius: 10px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.controls {
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid #d7dbe6;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.file input {
+  max-width: 260px;
+}
+
+.status {
+  background: var(--card);
+  border: 1px solid #d7dbe6;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.status[data-kind="error"] {
+  border-color: #c62828;
+  color: #8e0000;
+}
+
+.status[data-kind="success"] {
+  border-color: #2e7d32;
+  color: #1b5e20;
+}
+
+.content {
+  margin-top: 12px;
+}
+
+.table-wrap {
+  background: var(--card);
+  border: 1px solid #d7dbe6;
+  border-radius: 10px;
+  padding: 12px;
+  overflow: auto;
+}
+
+.empty {
+  padding: 12px;
+  color: var(--muted);
+}
+
+table.pivot {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 780px;
+  table-layout: fixed;
+}
+
+table.pivot th,
+table.pivot td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+table.pivot thead th {
+  background: var(--header);
+  font-weight: 700;
+}
+
+table.pivot th.row-header {
+  min-width: 280px;
+  text-align: left;
+}
+
+table.pivot td.label {
+  text-align: left;
+  white-space: nowrap;
+}
+
+table.pivot td.num {
+  text-align: right;
+  min-width: 92px;
+}
+
+table.pivot th.grand-total,
+table.pivot td.grand-total {
+  font-weight: 700;
+}
+
+table.pivot tbody tr[data-kind="group0"] td {
+  background: var(--group0);
+  font-weight: 700;
+}
+
+table.pivot tbody tr[data-kind="group1"] td {
+  background: var(--group1);
+  font-weight: 600;
+}
+
+table.pivot tbody tr[data-kind="grand"] td {
+  background: #e6f0e6;
+  font-weight: 800;
+}

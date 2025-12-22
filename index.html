@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline XLSX Pivot</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <div class="title">Offline XLSX Pivot Table</div>
+        <div class="subtitle">Upload an .xlsx file. The app reads the “Dashboard” sheet and renders an Excel-style hierarchical pivot table.</div>
+      </header>
+
+      <section class="controls">
+        <label class="file">
+          <input id="fileInput" type="file" accept=".xlsx" />
+          <span>Select .xlsx</span>
+        </label>
+        <div id="status" class="status" aria-live="polite"></div>
+      </section>
+
+      <section class="content">
+        <div id="tableWrap" class="table-wrap"></div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
