@@ -1,5 +1,6 @@
 import './styles.css';
 import * as XLSX from 'xlsx';
+import { toJpeg, toPng } from 'html-to-image';
 
 const SHEET_NAME = 'Dashboard';
 const REQUIRED_COLUMNS = [
@@ -40,9 +41,15 @@ function setStatus(message, kind = 'info') {
   el.dataset.kind = kind;
 }
 
+function setExportEnabled(enabled) {
+  const btn = document.getElementById('exportBtn');
+  if (btn) btn.disabled = !enabled;
+}
+
 function clearOutput() {
   const wrap = document.getElementById('tableWrap');
   wrap.innerHTML = '';
+  setExportEnabled(false);
 }
 
 function assertDashboardSheet(workbook) {
@@ -179,6 +186,7 @@ function renderPivot({ root, statuses }) {
 
   if (!root.children.size) {
     wrap.innerHTML = '<div class="empty">No rows found with a non-empty Application Key.</div>';
+    setExportEnabled(false);
     return;
   }
 
@@ -270,6 +278,54 @@ function renderPivot({ root, statuses }) {
 
   table.appendChild(tbody);
   wrap.appendChild(table);
+
+  setExportEnabled(true);
+}
+
+function defaultExportFileName(ext) {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  return `dashboard_pivot_${stamp}.${ext}`;
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function exportCurrentView() {
+  const node = document.getElementById('tableWrap');
+  if (!node) return;
+
+  const hasTable = !!node.querySelector('table');
+  if (!hasTable) {
+    setStatus('Nothing to export yet. Upload an .xlsx file first.', 'info');
+    return;
+  }
+
+  const formatEl = document.getElementById('exportFormat');
+  const format = String(formatEl?.value ?? 'png').toLowerCase();
+
+  const opts = {
+    backgroundColor: '#ffffff',
+    pixelRatio: 2,
+    cacheBust: true
+  };
+
+  setStatus('Exporting image...', 'info');
+
+  const dataUrl =
+    format === 'jpeg'
+      ? await toJpeg(node, { ...opts, quality: 0.95 })
+      : await toPng(node, opts);
+
+  downloadDataUrl(dataUrl, defaultExportFileName(format === 'jpeg' ? 'jpg' : 'png'));
+  setStatus('Export complete.', 'success');
 }
 
 async function onFileSelected(file) {
@@ -306,7 +362,17 @@ function init() {
     }
   });
 
+  const exportBtn = document.getElementById('exportBtn');
+  exportBtn?.addEventListener('click', async () => {
+    try {
+      await exportCurrentView();
+    } catch (err) {
+      setStatus(err?.message ? String(err.message) : 'Export failed.', 'error');
+    }
+  });
+
   setStatus('Select an .xlsx file to generate the pivot table.', 'info');
+  setExportEnabled(false);
 }
 
 init();
