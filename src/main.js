@@ -168,6 +168,11 @@ function formatNumber(n) {
   return new Intl.NumberFormat('en-US').format(n);
 }
 
+function computeTarget(total) {
+  const t = Number(total ?? 0);
+  return Math.ceil(t * 1.1);
+}
+
 function renderPivot({ root, statuses }) {
   const wrap = document.getElementById('tableWrap');
   wrap.innerHTML = '';
@@ -199,6 +204,11 @@ function renderPivot({ root, statuses }) {
   thGT.className = 'grand-total';
   htr.appendChild(thGT);
 
+  const thTarget = document.createElement('th');
+  thTarget.textContent = 'Target';
+  thTarget.className = 'target-header';
+  htr.appendChild(thTarget);
+
   thead.appendChild(htr);
   table.appendChild(thead);
 
@@ -227,6 +237,26 @@ function renderPivot({ root, statuses }) {
     tdTotal.textContent = formatNumber(agg.total ?? 0);
     tr.appendChild(tdTotal);
 
+    const current = Number(agg.total ?? 0);
+    const target = computeTarget(current);
+    const progress = target > 0 ? Math.min(current / target, 1) : 1;
+
+    const tdTarget = document.createElement('td');
+    tdTarget.className = 'target';
+    tdTarget.style.setProperty('--progress', `${Math.round(progress * 1000) / 10}%`);
+    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${Math.round(progress * 100)}%`;
+
+    const bar = document.createElement('div');
+    bar.className = 'target-bar';
+    tdTarget.appendChild(bar);
+
+    const text = document.createElement('div');
+    text.className = 'target-text';
+    text.textContent = formatNumber(target);
+    tdTarget.appendChild(text);
+
+    tr.appendChild(tdTarget);
+
     tbody.appendChild(tr);
   }
 
@@ -234,18 +264,6 @@ function renderPivot({ root, statuses }) {
   for (const ou0 of ou0Keys) {
     const n0 = root.children.get(ou0);
     appendRow(n0.key, 0, n0.agg, 'group0');
-
-    const ou1Keys = Array.from(n0.children.keys()).sort((a, b) => a.localeCompare(b));
-    for (const ou1 of ou1Keys) {
-      const n1 = n0.children.get(ou1);
-      appendRow(n1.key, 1, n1.agg, 'group1');
-
-      const ou2Keys = Array.from(n1.children.keys()).sort((a, b) => a.localeCompare(b));
-      for (const ou2 of ou2Keys) {
-        const n2 = n1.children.get(ou2);
-        appendRow(n2.key, 2, n2.agg, 'leaf');
-      }
-    }
   }
 
   appendRow('Grand Total', 0, root.agg, 'grand');

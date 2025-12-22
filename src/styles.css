@@ -137,6 +137,39 @@ table.pivot td.num {
   min-width: 92px;
 }
 
+table.pivot th.target-header {
+  min-width: 120px;
+}
+
+table.pivot td.target {
+  position: relative;
+  min-width: 120px;
+  padding: 0;
+  text-align: right;
+}
+
+table.pivot td.target .target-bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    #3aa655 0%,
+    #3aa655 var(--progress, 0%),
+    #d9534f var(--progress, 0%),
+    #d9534f 100%
+  );
+  opacity: 0.9;
+}
+
+table.pivot td.target .target-text {
+  position: relative;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0b1220;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
 table.pivot th.grand-total,
 table.pivot td.grand-total {
   font-weight: 700;
