@@ -127,7 +127,9 @@ function addToAgg(agg, status, inc = 1) {
 
 function buildPivot(rows) {
   const filtered = rows.filter((r) => r.applicationKey.length > 0);
-  const statuses = sortStatuses(filtered.map((r) => r.status));
+  const statuses = sortStatuses(filtered.map((r) => r.status)).filter(
+    (s) => normalizeHeader(s) !== normalizeHeader('Draft')
+  );
 
   const root = {
     children: new Map(),
@@ -247,21 +249,37 @@ function renderPivot({ root, statuses }) {
 
     const current = Number(agg.total ?? 0);
     const target = computeTarget(current);
-    const progress = target > 0 ? Math.min(current / target, 1) : 1;
+    const rawRatio = target > 0 ? current / target : 1;
+    const progress = Math.max(0, Math.min(rawRatio, 1));
+    const progressPct = Math.round(progress * 100);
+    const markerPos = Math.min(Math.max(progress * 100, 2), 98);
 
     const tdTarget = document.createElement('td');
     tdTarget.className = 'target';
-    tdTarget.style.setProperty('--progress', `${Math.round(progress * 1000) / 10}%`);
-    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${Math.round(progress * 100)}%`;
+    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
+    tdTarget.style.setProperty('--p', `${markerPos}%`);
 
-    const bar = document.createElement('div');
-    bar.className = 'target-bar';
-    tdTarget.appendChild(bar);
+    const pill = document.createElement('div');
+    pill.className = 'target-pill';
 
-    const text = document.createElement('div');
-    text.className = 'target-text';
-    text.textContent = formatNumber(target);
-    tdTarget.appendChild(text);
+    const markerLine = document.createElement('div');
+    markerLine.className = 'target-marker-line';
+
+    const marker = document.createElement('div');
+    marker.className = 'target-marker';
+
+    const triangle = document.createElement('div');
+    triangle.className = 'target-triangle';
+    marker.appendChild(triangle);
+
+    const pct = document.createElement('div');
+    pct.className = 'target-percent';
+    pct.textContent = `${progressPct}%`;
+    marker.appendChild(pct);
+
+    tdTarget.appendChild(pill);
+    tdTarget.appendChild(markerLine);
+    tdTarget.appendChild(marker);
 
     tr.appendChild(tdTarget);
 
