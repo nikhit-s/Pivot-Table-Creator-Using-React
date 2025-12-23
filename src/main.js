@@ -52,6 +52,15 @@ function clearOutput() {
   setExportEnabled(false);
 }
 
+let currentFile = null;
+let prevYearFile = null;
+
+const prevTargets = {
+  perOU0: new Map(),
+  grand: null,
+  available: false
+};
+
 function assertDashboardSheet(workbook) {
   const sheet = workbook.Sheets?.[SHEET_NAME];
   if (!sheet) {
@@ -182,6 +191,72 @@ function computeTarget(total) {
   return Math.ceil(t * 1.1);
 }
 
+function resetPrevTargets() {
+  prevTargets.perOU0 = new Map();
+  prevTargets.grand = null;
+  prevTargets.available = false;
+}
+
+async function parseWorkbookFromFile(file) {
+  const buf = await file.arrayBuffer();
+  return XLSX.read(buf, { type: 'array' });
+}
+
+function computePrevYearTargets(prevRows) {
+  const perOU0Counts = new Map();
+  let grand = 0;
+  for (const r of prevRows) {
+    if (!r.applicationKey) continue;
+    grand += 1;
+    perOU0Counts.set(r.ou0, (perOU0Counts.get(r.ou0) ?? 0) + 1);
+  }
+
+  const perOU0Targets = new Map();
+  perOU0Counts.forEach((count, ou0) => perOU0Targets.set(ou0, Math.ceil(count * 1.1)));
+
+  return {
+    perOU0Targets,
+    grandTarget: Math.ceil(grand * 1.1),
+    grandCount: grand
+  };
+}
+
+async function processIfReady() {
+  clearOutput();
+
+  if (!currentFile || !prevYearFile) {
+    setStatus('Upload both files (Current Year and Prev Year) to generate the pivot.', 'info');
+    return;
+  }
+
+  setStatus('Processing files...', 'info');
+  resetPrevTargets();
+
+  const [currentWb, prevWb] = await Promise.all([
+    parseWorkbookFromFile(currentFile),
+    parseWorkbookFromFile(prevYearFile)
+  ]);
+
+  const currentSheet = assertDashboardSheet(currentWb);
+  const prevSheet = assertDashboardSheet(prevWb);
+
+  const currentRows = readRowsFromSheet(currentSheet);
+  const prevRows = readRowsFromSheet(prevSheet);
+
+  const { perOU0Targets, grandTarget, grandCount } = computePrevYearTargets(prevRows);
+  prevTargets.perOU0 = perOU0Targets;
+  prevTargets.grand = grandTarget;
+  prevTargets.available = true;
+
+  const { root, statuses } = buildPivot(currentRows);
+  renderPivot({ root, statuses });
+
+  setStatus(
+    `Rendered current year (${currentRows.length} rows). Prev year base: ${formatNumber(grandCount)} | Target (Grand): ${formatNumber(grandTarget)}.`,
+    'success'
+  );
+}
+
 function renderPivot({ root, statuses }) {
   const wrap = document.getElementById('tableWrap');
   wrap.innerHTML = '';
@@ -248,7 +323,14 @@ function renderPivot({ root, statuses }) {
     tr.appendChild(tdTotal);
 
     const current = Number(agg.total ?? 0);
-    const target = computeTarget(current);
+    let target;
+    if (prevTargets.available && rowKind === 'grand' && typeof prevTargets.grand === 'number') {
+      target = prevTargets.grand;
+    } else if (prevTargets.available && rowKind === 'group0' && prevTargets.perOU0.has(label)) {
+      target = prevTargets.perOU0.get(label);
+    } else {
+      target = computeTarget(current);
+    }
     const rawRatio = target > 0 ? current / target : 1;
     const progress = Math.max(0, Math.min(rawRatio, 1));
     const progressPct = Math.round(progress * 100);
@@ -347,25 +429,13 @@ async function exportCurrentView() {
 }
 
 async function onFileSelected(file) {
-  clearOutput();
+  currentFile = file ?? null;
+  await processIfReady();
+}
 
-  if (!file) {
-    setStatus('No file selected.', 'info');
-    return;
-  }
-
-  setStatus(`Reading ${file.name}...`, 'info');
-
-  const buf = await file.arrayBuffer();
-  const workbook = XLSX.read(buf, { type: 'array' });
-
-  const sheet = assertDashboardSheet(workbook);
-  const rows = readRowsFromSheet(sheet);
-
-  const { root, statuses } = buildPivot(rows);
-  renderPivot({ root, statuses });
-
-  setStatus(`Rendered ${rows.length} rows from “${SHEET_NAME}”.`, 'success');
+async function onPrevFileSelected(file) {
+  prevYearFile = file ?? null;
+  await processIfReady();
 }
 
 function init() {
@@ -380,6 +450,17 @@ function init() {
     }
   });
 
+  const prevInput = document.getElementById('prevFileInput');
+  prevInput?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    try {
+      await onPrevFileSelected(file);
+    } catch (err) {
+      clearOutput();
+      setStatus(err?.message ? String(err.message) : 'Failed to process previous year file.', 'error');
+    }
+  });
+
   const exportBtn = document.getElementById('exportBtn');
   exportBtn?.addEventListener('click', async () => {
     try {
@@ -389,7 +470,7 @@ function init() {
     }
   });
 
-  setStatus('Select an .xlsx file to generate the pivot table.', 'info');
+  setStatus('Upload both .xlsx files (Current and Prev Year) to generate the pivot table.', 'info');
   setExportEnabled(false);
 }
 
