@@ -334,34 +334,38 @@ function renderPivot({ root, statuses }) {
     const rawRatio = target > 0 ? current / target : 1;
     const progress = Math.max(0, Math.min(rawRatio, 1));
     const progressPct = Math.round(progress * 100);
-    const markerPos = Math.min(Math.max(progress * 100, 2), 98);
+    const markerPos = Math.min(Math.max(progress * 100, 4), 92);
+    const markerCssPos = progressPct >= 100 ? 'calc(100% - 13px)' : `${markerPos}%`;
 
     const tdTarget = document.createElement('td');
     tdTarget.className = 'target';
     tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
-    tdTarget.style.setProperty('--p', `${markerPos}%`);
+    const track = document.createElement('div');
+    track.className = 'target-track';
+    track.style.setProperty('--p', markerCssPos);
 
     const pill = document.createElement('div');
     pill.className = 'target-pill';
 
-    const markerLine = document.createElement('div');
-    markerLine.className = 'target-marker-line';
-
     const marker = document.createElement('div');
-    marker.className = 'target-marker';
-
-    const triangle = document.createElement('div');
-    triangle.className = 'target-triangle';
-    marker.appendChild(triangle);
+    marker.className = 'target-golf';
 
     const pct = document.createElement('div');
-    pct.className = 'target-percent';
+    pct.className = 'target-golf-label';
     pct.textContent = `${progressPct}%`;
     marker.appendChild(pct);
 
-    tdTarget.appendChild(pill);
-    tdTarget.appendChild(markerLine);
-    tdTarget.appendChild(marker);
+    const pointer = document.createElement('div');
+    pointer.className = 'target-golf-pointer';
+    marker.appendChild(pointer);
+
+    const ball = document.createElement('div');
+    ball.className = 'target-golf-ball';
+    marker.appendChild(ball);
+
+    track.appendChild(pill);
+    track.appendChild(marker);
+    tdTarget.appendChild(track);
 
     tr.appendChild(tdTarget);
 
