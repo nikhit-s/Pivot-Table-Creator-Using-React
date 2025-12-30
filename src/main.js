@@ -2,6 +2,9 @@ import './styles.css';
 import * as XLSX from 'xlsx';
 import { toJpeg, toPng } from 'html-to-image';
 
+const pivotWorker = new Worker(new URL('./xlsxWorker.js', import.meta.url), { type: 'module' });
+let activeProcessId = 0;
+
 const SHEET_NAME = 'Dashboard';
 const REQUIRED_COLUMNS = [
   'OU Level 0',
@@ -232,29 +235,178 @@ async function processIfReady() {
   setStatus('Processing files...', 'info');
   resetPrevTargets();
 
-  const [currentWb, prevWb] = await Promise.all([
-    parseWorkbookFromFile(currentFile),
-    parseWorkbookFromFile(prevYearFile)
+  const myId = ++activeProcessId;
+  const [currentBuf, prevBuf] = await Promise.all([
+    currentFile.arrayBuffer(),
+    prevYearFile.arrayBuffer()
   ]);
 
-  const currentSheet = assertDashboardSheet(currentWb);
-  const prevSheet = assertDashboardSheet(prevWb);
+  const result = await new Promise((resolve, reject) => {
+    const onMessage = (ev) => {
+      const data = ev.data;
+      if (!data || data.id !== myId) return;
+      pivotWorker.removeEventListener('message', onMessage);
+      pivotWorker.removeEventListener('error', onError);
+      resolve(data);
+    };
+    const onError = (err) => {
+      pivotWorker.removeEventListener('message', onMessage);
+      pivotWorker.removeEventListener('error', onError);
+      reject(err);
+    };
+    pivotWorker.addEventListener('message', onMessage);
+    pivotWorker.addEventListener('error', onError);
+    pivotWorker.postMessage({ id: myId, currentBuf, prevBuf }, [currentBuf, prevBuf]);
+  });
 
-  const currentRows = readRowsFromSheet(currentSheet);
-  const prevRows = readRowsFromSheet(prevSheet);
+  if (myId !== activeProcessId) return;
 
-  const { perOU0Targets, grandTarget, grandCount } = computePrevYearTargets(prevRows);
-  prevTargets.perOU0 = perOU0Targets;
-  prevTargets.grand = grandTarget;
+  if (!result.ok) {
+    throw new Error(result.error || 'Failed to process files.');
+  }
+
+  const { pivot, prev } = result;
+  prevTargets.perOU0 = new Map(Object.entries(prev.perOU0Targets || {}));
+  prevTargets.grand = prev.grandTarget;
   prevTargets.available = true;
 
-  const { root, statuses } = buildPivot(currentRows);
-  renderPivot({ root, statuses });
+  renderPivotFlat(pivot);
 
   setStatus(
-    `Rendered current year (${currentRows.length} rows). Prev year base: ${formatNumber(grandCount)} | Target (Grand): ${formatNumber(grandTarget)}.`,
+    `Rendered current year (${pivot.totalCount} rows). Prev year base: ${formatNumber(prev.grandCount)} | Target (Grand): ${formatNumber(prev.grandTarget)}.`,
     'success'
   );
+}
+
+function renderPivotFlat(pivot) {
+  const wrap = document.getElementById('tableWrap');
+  wrap.innerHTML = '';
+
+  if (!pivot?.ou0Aggs?.length) {
+    wrap.innerHTML = '<div class="empty">No rows found with a non-empty Application Key.</div>';
+    setExportEnabled(false);
+    return;
+  }
+
+  const statuses = Array.isArray(pivot.statuses) ? pivot.statuses : [];
+
+  const table = document.createElement('table');
+  table.className = 'pivot';
+
+  const thead = document.createElement('thead');
+  const htr = document.createElement('tr');
+
+  const h0 = document.createElement('th');
+  h0.textContent = 'BG-Unit-Subunit';
+  h0.className = 'row-header';
+  htr.appendChild(h0);
+
+  for (const s of statuses) {
+    const th = document.createElement('th');
+    th.textContent = s;
+    htr.appendChild(th);
+  }
+
+  const thGT = document.createElement('th');
+  thGT.textContent = 'Grand Total';
+  thGT.className = 'grand-total';
+  htr.appendChild(thGT);
+
+  const thTarget = document.createElement('th');
+  thTarget.textContent = 'Target';
+  thTarget.className = 'target-header';
+  htr.appendChild(thTarget);
+
+  thead.appendChild(htr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  const getCount = (agg, status) => Number(agg?.byStatus?.[status] ?? 0);
+  const getTotal = (agg) => Number(agg?.total ?? 0);
+
+  function appendRow(label, level, agg, rowKind = 'normal') {
+    const tr = document.createElement('tr');
+    tr.dataset.level = String(level);
+    tr.dataset.kind = rowKind;
+
+    const tdLabel = document.createElement('td');
+    tdLabel.className = 'label';
+    tdLabel.style.paddingLeft = `${8 + level * 18}px`;
+    tdLabel.textContent = label;
+    tr.appendChild(tdLabel);
+
+    for (const s of statuses) {
+      const td = document.createElement('td');
+      td.className = 'num';
+      td.textContent = formatNumber(getCount(agg, s));
+      tr.appendChild(td);
+    }
+
+    const tdTotal = document.createElement('td');
+    tdTotal.className = 'num grand-total';
+    tdTotal.textContent = formatNumber(getTotal(agg));
+    tr.appendChild(tdTotal);
+
+    const current = getTotal(agg);
+    let target;
+    if (prevTargets.available && rowKind === 'grand' && typeof prevTargets.grand === 'number') {
+      target = prevTargets.grand;
+    } else if (prevTargets.available && rowKind === 'group0' && prevTargets.perOU0.has(label)) {
+      target = prevTargets.perOU0.get(label);
+    } else {
+      target = computeTarget(current);
+    }
+    const rawRatio = target > 0 ? current / target : 1;
+    const progress = Math.max(0, Math.min(rawRatio, 1));
+    const progressPct = Math.round(progress * 100);
+    const markerPos = Math.min(Math.max(progress * 100, 4), 92);
+    const markerCssPos = progressPct >= 100 ? 'calc(100% - 13px)' : `${markerPos}%`;
+
+    const tdTarget = document.createElement('td');
+    tdTarget.className = 'target';
+    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
+    const track = document.createElement('div');
+    track.className = 'target-track';
+    track.style.setProperty('--p', markerCssPos);
+
+    const pill = document.createElement('div');
+    pill.className = 'target-pill';
+
+    const marker = document.createElement('div');
+    marker.className = 'target-golf';
+
+    const pct = document.createElement('div');
+    pct.className = 'target-golf-label';
+    pct.textContent = `${progressPct}%`;
+    marker.appendChild(pct);
+
+    const pointer = document.createElement('div');
+    pointer.className = 'target-golf-pointer';
+    marker.appendChild(pointer);
+
+    const ball = document.createElement('div');
+    ball.className = 'target-golf-ball';
+    marker.appendChild(ball);
+
+    track.appendChild(pill);
+    track.appendChild(marker);
+    tdTarget.appendChild(track);
+
+    tr.appendChild(tdTarget);
+    tbody.appendChild(tr);
+  }
+
+  for (const row of pivot.ou0Aggs) {
+    appendRow(row.key, 0, row.agg, 'group0');
+  }
+
+  appendRow('Grand Total', 0, pivot.grandAgg, 'grand');
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+
+  setExportEnabled(true);
 }
 
 function renderPivot({ root, statuses }) {
