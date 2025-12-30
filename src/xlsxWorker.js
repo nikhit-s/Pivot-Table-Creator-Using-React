@@ -33,6 +33,16 @@ function normalizeCell(v) {
   return s.length ? s : '(blank)';
 }
 
+function extractBG(v) {
+  const s = String(v ?? '').trim();
+  if (!s.length) return '(blank)';
+  const dashIdx = s.indexOf('-');
+  if (dashIdx > 0) {
+    return s.substring(0, dashIdx).trim();
+  }
+  return s;
+}
+
 function assertDashboardSheet(workbook) {
   const sheet = workbook.Sheets?.[SHEET_NAME];
   if (!sheet) {
@@ -68,7 +78,7 @@ function readRowsFromSheet(sheet) {
   }
 
   return rows.map((r) => ({
-    ou0: normalizeCell(r[resolved['OU Level 0']]),
+    ou0: extractBG(r[resolved['OU Level 0']]),
     ou1: normalizeCell(r[resolved['OU Level 1']]),
     ou2: normalizeCell(r[resolved['OU Level 2']]),
     applicationKey: String(r[resolved['Application Key']] ?? '').trim(),
@@ -130,7 +140,9 @@ function computePrevYearTargets(prevRows) {
 function buildPivotFlat(rows) {
   const filtered = rows.filter((r) => r.applicationKey.length > 0);
   const statuses = sortStatuses(filtered.map((r) => r.status)).filter(
-    (s) => normalizeHeader(s) !== normalizeHeader('Draft')
+    (s) =>
+      normalizeHeader(s) !== normalizeHeader('Draft') &&
+      normalizeHeader(s) !== normalizeHeader('Submitted')
   );
 
   const grandAgg = newAggRecord(statuses);
@@ -148,7 +160,11 @@ function buildPivotFlat(rows) {
     addToAggRecord(ou0Map.get(r.ou0).agg, r.status, 1);
   }
 
-  const ou0Aggs = Array.from(ou0Map.values()).sort((a, b) => a.key.localeCompare(b.key));
+  const ou0Aggs = Array.from(ou0Map.values()).sort((a, b) => {
+    if (a.key === '(blank)' && b.key !== '(blank)') return 1;
+    if (b.key === '(blank)' && a.key !== '(blank)') return -1;
+    return a.key.localeCompare(b.key);
+  });
 
   return {
     statuses,
