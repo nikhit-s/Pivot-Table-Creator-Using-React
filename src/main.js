@@ -140,7 +140,9 @@ function addToAgg(agg, status, inc = 1) {
 function buildPivot(rows) {
   const filtered = rows.filter((r) => r.applicationKey.length > 0);
   const statuses = sortStatuses(filtered.map((r) => r.status)).filter(
-    (s) => normalizeHeader(s) !== normalizeHeader('Draft')
+    (s) =>
+      normalizeHeader(s) !== normalizeHeader('Draft') &&
+      normalizeHeader(s) !== normalizeHeader('Submitted')
   );
 
   const root = {
@@ -441,10 +443,15 @@ function renderPivot({ root, statuses }) {
   thGT.className = 'grand-total';
   htr.appendChild(thGT);
 
-  const thTarget = document.createElement('th');
-  thTarget.textContent = 'Target';
-  thTarget.className = 'target-header';
-  htr.appendChild(thTarget);
+  const thTargetValue = document.createElement('th');
+  thTargetValue.textContent = 'Target Value';
+  thTargetValue.className = 'target-value-header';
+  htr.appendChild(thTargetValue);
+
+  const thTargetIllustration = document.createElement('th');
+  thTargetIllustration.textContent = 'Target Illustration';
+  thTargetIllustration.className = 'target-illustration-header';
+  htr.appendChild(thTargetIllustration);
 
   thead.appendChild(htr);
   table.appendChild(thead);
@@ -487,17 +494,35 @@ function renderPivot({ root, statuses }) {
     const progress = Math.max(0, Math.min(rawRatio, 1));
     const progressPct = Math.round(progress * 100);
     const markerPos = Math.min(Math.max(progress * 100, 4), 92);
-    const markerCssPos = progressPct >= 100 ? 'calc(100% - 13px)' : `${markerPos}%`;
+    const markerCssPos =
+      progressPct >= 100 ? 'calc(100% - var(--target-pill-h, 13px))' : `${markerPos}%`;
 
-    const tdTarget = document.createElement('td');
-    tdTarget.className = 'target';
-    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
+    const tdTargetValue = document.createElement('td');
+    tdTargetValue.className = 'num target-value';
+    tdTargetValue.textContent = formatNumber(target);
+    tr.appendChild(tdTargetValue);
+
+    const tdTargetIllustration = document.createElement('td');
+    tdTargetIllustration.className = 'target-illustration';
+    tdTargetIllustration.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
     const track = document.createElement('div');
     track.className = 'target-track';
     track.style.setProperty('--p', markerCssPos);
 
     const pill = document.createElement('div');
     pill.className = 'target-pill';
+    pill.style.setProperty('--fill', progressPct >= 100 ? '100%' : markerCssPos);
+    pill.classList.add(
+      progressPct <= 15
+        ? 'fill-red'
+        : progressPct <= 25
+          ? 'fill-red-light'
+          : progressPct <= 50
+            ? 'fill-orange'
+            : progressPct <= 80
+              ? 'fill-green-light'
+              : 'fill-green'
+    );
 
     const marker = document.createElement('div');
     marker.className = 'target-golf';
@@ -517,14 +542,18 @@ function renderPivot({ root, statuses }) {
 
     track.appendChild(pill);
     track.appendChild(marker);
-    tdTarget.appendChild(track);
+    tdTargetIllustration.appendChild(track);
 
-    tr.appendChild(tdTarget);
+    tr.appendChild(tdTargetIllustration);
 
     tbody.appendChild(tr);
   }
 
-  const ou0Keys = Array.from(root.children.keys()).sort((a, b) => a.localeCompare(b));
+  const ou0Keys = Array.from(root.children.keys()).sort((a, b) => {
+    if (a === '(blank)' && b !== '(blank)') return 1;
+    if (b === '(blank)' && a !== '(blank)') return -1;
+    return a.localeCompare(b);
+  });
   for (const ou0 of ou0Keys) {
     const n0 = root.children.get(ou0);
     appendRow(n0.key, 0, n0.agg, 'group0');
@@ -554,15 +583,66 @@ function downloadDataUrl(dataUrl, filename) {
   a.remove();
 }
 
+function buildRowChunkedExportNode(sourceTable) {
+  const exportRoot = document.createElement('div');
+  exportRoot.className = 'export-row-chunks';
+  exportRoot.style.cssText = 'position:absolute;left:0;top:0;background:#ffffff;padding:20px;z-index:-9999;pointer-events:none;';
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:flex;gap:20px;align-items:flex-start;';
+  exportRoot.appendChild(grid);
+
+  const thead = sourceTable.querySelector('thead');
+  const bodyRows = Array.from(sourceTable.querySelectorAll('tbody tr'));
+
+  const totalRows = bodyRows.length;
+  const parts = totalRows <= 30 ? 1 : 1 + Math.ceil((totalRows - 30) / 15);
+  const rowsPer = Math.ceil(totalRows / parts);
+
+  for (let i = 0; i < parts; i += 1) {
+    const start = i * rowsPer;
+    if (start >= bodyRows.length) break;
+    const end = Math.min(start + rowsPer, bodyRows.length);
+
+    const panel = document.createElement('div');
+    panel.style.cssText = 'background:#ffffff;border:2px solid #9aa4b2;border-radius:8px;padding:12px;';
+
+    const t = document.createElement('table');
+    t.className = sourceTable.className;
+    t.style.cssText = 'width:max-content;min-width:0;';
+
+    if (thead) t.appendChild(thead.cloneNode(true));
+
+    const tbody = document.createElement('tbody');
+    for (let r = start; r < end; r += 1) {
+      tbody.appendChild(bodyRows[r].cloneNode(true));
+    }
+    t.appendChild(tbody);
+
+    panel.appendChild(t);
+    grid.appendChild(panel);
+  }
+
+  return exportRoot;
+}
+
 async function exportCurrentView() {
   const node = document.getElementById('tableWrap');
   if (!node) return;
 
-  const hasTable = !!node.querySelector('table');
-  if (!hasTable) {
+  const sourceTable = node.querySelector('table');
+  if (!sourceTable) {
     setStatus('Nothing to export yet. Upload an .xlsx file first.', 'info');
     return;
   }
+
+  const exportNode = buildRowChunkedExportNode(sourceTable);
+  document.body.appendChild(exportNode);
+
+  if (document.fonts?.ready) {
+    try { await document.fonts.ready; } catch { /* ignore */ }
+  }
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   const formatEl = document.getElementById('exportFormat');
   const format = String(formatEl?.value ?? 'png').toLowerCase();
@@ -575,10 +655,14 @@ async function exportCurrentView() {
 
   setStatus('Exporting image...', 'info');
 
-  const dataUrl =
-    format === 'jpeg'
-      ? await toJpeg(node, { ...opts, quality: 0.95 })
-      : await toPng(node, opts);
+  let dataUrl;
+  try {
+    dataUrl = format === 'jpeg'
+      ? await toJpeg(exportNode, { ...opts, quality: 0.95 })
+      : await toPng(exportNode, opts);
+  } finally {
+    exportNode.remove();
+  }
 
   downloadDataUrl(dataUrl, defaultExportFileName(format === 'jpeg' ? 'jpg' : 'png'));
   setStatus('Export complete.', 'success');
