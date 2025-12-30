@@ -193,13 +193,13 @@ table.pivot td.target-illustration .target-track {
   overflow: visible;
 }
 
-table.pivot td.target-illustration .target-track::before {
+table.pivot td.target .target-track::before {
   content: '';
   position: absolute;
-  left: calc(100% - 2px);
-  top: calc(-1 * (var(--target-pill-h, 13px) + 6px));
+  left: calc(100% - 13px);
+  top: -26px;
   width: 2px;
-  height: calc(var(--target-pill-h, 13px) + 16px);
+  height: 46px;
   transform: translateX(-50%);
   border-radius: 2px;
   background: linear-gradient(#cfcfcf, #7c7c7c);
@@ -210,11 +210,11 @@ table.pivot td.target-illustration .target-track::before {
   pointer-events: none;
 }
 
-table.pivot td.target-illustration .target-track::after {
+table.pivot td.target .target-track::after {
   content: '';
   position: absolute;
-  left: calc(100% - 2px);
-  top: calc(-1 * (var(--target-pill-h, 13px) + 4px));
+  left: calc(100% - 13px);
+  top: -26px;
   width: 0;
   height: 0;
   border-top: 6px solid transparent;
@@ -225,7 +225,7 @@ table.pivot td.target-illustration .target-track::after {
   pointer-events: none;
 }
 
-table.pivot td.target-illustration .target-pill {
+table.pivot td.target .target-pill {
   position: relative;
   width: 100%;
   height: var(--target-pill-h, 13px);

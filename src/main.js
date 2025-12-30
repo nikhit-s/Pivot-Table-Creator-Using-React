@@ -314,15 +314,10 @@ function renderPivotFlat(pivot) {
   thGT.className = 'grand-total';
   htr.appendChild(thGT);
 
-  const thTargetValue = document.createElement('th');
-  thTargetValue.textContent = 'Target Value';
-  thTargetValue.className = 'target-value-header';
-  htr.appendChild(thTargetValue);
-
-  const thTargetIllustration = document.createElement('th');
-  thTargetIllustration.textContent = 'Target Illustration';
-  thTargetIllustration.className = 'target-illustration-header';
-  htr.appendChild(thTargetIllustration);
+  const thTarget = document.createElement('th');
+  thTarget.textContent = 'Target';
+  thTarget.className = 'target-header';
+  htr.appendChild(thTarget);
 
   thead.appendChild(htr);
   table.appendChild(thead);
@@ -368,35 +363,17 @@ function renderPivotFlat(pivot) {
     const progress = Math.max(0, Math.min(rawRatio, 1));
     const progressPct = Math.round(progress * 100);
     const markerPos = Math.min(Math.max(progress * 100, 4), 92);
-    const markerCssPos =
-      progressPct >= 100 ? 'calc(100% - var(--target-pill-h, 13px))' : `${markerPos}%`;
+    const markerCssPos = progressPct >= 100 ? 'calc(100% - 13px)' : `${markerPos}%`;
 
-    const tdTargetValue = document.createElement('td');
-    tdTargetValue.className = 'num target-value';
-    tdTargetValue.textContent = formatNumber(target);
-    tr.appendChild(tdTargetValue);
-
-    const tdTargetIllustration = document.createElement('td');
-    tdTargetIllustration.className = 'target-illustration';
-    tdTargetIllustration.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
+    const tdTarget = document.createElement('td');
+    tdTarget.className = 'target';
+    tdTarget.title = `Current: ${formatNumber(current)} | Target: ${formatNumber(target)} | Progress: ${progressPct}%`;
     const track = document.createElement('div');
     track.className = 'target-track';
     track.style.setProperty('--p', markerCssPos);
 
     const pill = document.createElement('div');
     pill.className = 'target-pill';
-    pill.style.setProperty('--fill', progressPct >= 100 ? '100%' : markerCssPos);
-    pill.classList.add(
-      progressPct <= 15
-        ? 'fill-red'
-        : progressPct <= 25
-          ? 'fill-red-light'
-          : progressPct <= 50
-            ? 'fill-orange'
-            : progressPct <= 80
-              ? 'fill-green-light'
-              : 'fill-green'
-    );
 
     const marker = document.createElement('div');
     marker.className = 'target-golf';
@@ -416,9 +393,9 @@ function renderPivotFlat(pivot) {
 
     track.appendChild(pill);
     track.appendChild(marker);
-    tdTargetIllustration.appendChild(track);
+    tdTarget.appendChild(track);
 
-    tr.appendChild(tdTargetIllustration);
+    tr.appendChild(tdTarget);
     tbody.appendChild(tr);
   }
 
